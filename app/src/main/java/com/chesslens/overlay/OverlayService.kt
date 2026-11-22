@@ -3,6 +3,7 @@ package com.chesslens.overlay
 import android.app.Service
 import android.content.Intent
 import android.graphics.*
+import android.os.Build
 import android.os.IBinder
 import android.view.*
 import android.view.MotionEvent
@@ -23,7 +24,7 @@ class OverlayService : Service() {
         if (view == null) {
             params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                overlayWindowType(),
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT
@@ -31,7 +32,7 @@ class OverlayService : Service() {
             view = MoveOverlayView(this)
             wm.addView(view, params)
             panelParams = WindowManager.LayoutParams(
-                dp(228), dp(82), WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                dp(228), dp(82), overlayWindowType(),
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT
             ).apply { gravity = Gravity.TOP or Gravity.START; x = dp(12); y = dp(96) }
@@ -62,6 +63,14 @@ class OverlayService : Service() {
         return START_NOT_STICKY
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+
+    @Suppress("DEPRECATION")
+    private fun overlayWindowType(): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
     override fun onDestroy() {
         val wm = getSystemService(WindowManager::class.java)
         view?.let { runCatching { wm.removeView(it) } }

@@ -1,8 +1,11 @@
 package com.chesslens
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -14,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontFamily
+import androidx.core.content.ContextCompat
 import com.chesslens.services.ScreenCaptureService
 import com.chesslens.chess.ChessPosition
 
@@ -27,7 +31,7 @@ class MainActivity : ComponentActivity() {
         val stillAuthorized = captureRequestStillTraining
         captureRequestStillTraining = false
         if (stillAuthorized && result.resultCode == RESULT_OK && result.data != null) {
-            startForegroundService(Intent(this, ScreenCaptureService::class.java).apply {
+            ContextCompat.startForegroundService(this, Intent(this, ScreenCaptureService::class.java).apply {
                 putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
                 putExtra(ScreenCaptureService.EXTRA_DATA, result.data)
                 putExtra(ScreenCaptureService.EXTRA_INITIAL_FEN, requestedFen)
@@ -35,6 +39,30 @@ class MainActivity : ComponentActivity() {
                 putExtra(ScreenCaptureService.EXTRA_TRAINING_CONFIRMED, true)
                 putExtra(ScreenCaptureService.EXTRA_POSITION_CONFIRMED, true)
             })
+        }
+    }
+    private val notificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        launchCapture()
+    }
+
+    private fun launchCapture() {
+        if (!Settings.canDrawOverlays(this)) {
+            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")))
+        }
+        val manager = getSystemService(MediaProjectionManager::class.java)
+        capturePermission.launch(manager.createScreenCaptureIntent())
+    }
+
+    private fun requestNotificationsThenCapture() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            launchCapture()
         }
     }
 
@@ -48,7 +76,7 @@ class MainActivity : ComponentActivity() {
                 var fen by remember { mutableStateOf(START_FEN) }
                 var whiteAtBottom by remember { mutableStateOf(true) }
                 Surface(Modifier.fillMaxSize()) {
-                    Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(Modifier.safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         Text("ChessLens ♛", style = MaterialTheme.typography.headlineMedium)
                         Text("Offline-first chess training assistant")
                         Text("Suggestions are disabled until you explicitly select a permitted training activity.")
@@ -103,13 +131,8 @@ class MainActivity : ComponentActivity() {
                             requestedFen = validFen
                             requestedWhiteAtBottom = whiteAtBottom
                             captureRequestStillTraining = training && visiblePositionConfirmed
-                            if (!Settings.canDrawOverlays(this@MainActivity)) {
-                                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                    Uri.parse("package:$packageName")))
-                            }
-                            val manager = getSystemService(MediaProjectionManager::class.java)
-                            capturePermission.launch(manager.createScreenCaptureIntent())
                             status = "Waiting for screen-capture permission"
+                            requestNotificationsThenCapture()
                         }) { Text("Start training capture") }
                         Text(status)
                         Text("Screen capture requires your consent each session. Frames remain on device.")

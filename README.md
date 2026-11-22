@@ -3,10 +3,10 @@
   <h1>ChessLens</h1>
   <p><strong>A local-first chess training companion for Android.</strong></p>
   <p>
-    <img alt="Android" src="https://img.shields.io/badge/Android-API%2029%2B-3DDC84?logo=android&logoColor=white">
+    <img alt="Android" src="https://img.shields.io/badge/Android-6.0%2B%20(API%2023)-3DDC84?logo=android&logoColor=white">
     <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Compose-7F52FF?logo=kotlin&logoColor=white">
     <img alt="Training only" src="https://img.shields.io/badge/Use-training%20only-f97316">
-    <img alt="Engine" src="https://img.shields.io/badge/Engine-Stockfish%20ARM64-2563eb">
+    <img alt="Engine" src="https://img.shields.io/badge/Engine-Stockfish%20%C2%B7%204%20ABIs-2563eb">
   </p>
   <p>
     <a href="#getting-started">Get started</a> ·
@@ -27,12 +27,18 @@ ChessLens is an **experimental training tool**. With your explicit training sele
 
 - <img src="docs/icons/camera.svg" width="18" height="18" alt=""> **Consent-gated capture.** Captures the screen only after Android’s per-session MediaProjection consent.
 - <img src="docs/icons/board.svg" width="18" height="18" alt=""> **Legal-move tracking.** Checks candidate board changes against a trusted, complete FEN and legal chess continuations.
-- <img src="docs/icons/cpu.svg" width="18" height="18" alt=""> **Bundled engine.** Runs Stockfish with matching NNUE networks on supported ARM64 devices.
+- <img src="docs/icons/cpu.svg" width="18" height="18" alt=""> **Bundled engine.** Runs Stockfish with matching NNUE networks on ARM64, ARMv7, x86, and x86_64 devices.
 - <img src="docs/icons/target.svg" width="18" height="18" alt=""> **Validated suggestions.** Accepts an engine move only after it passes the app’s legal-move generator.
 - <img src="docs/icons/lock.svg" width="18" height="18" alt=""> **Local by design.** Processes frames in memory; nothing is uploaded or saved.
 - <img src="docs/icons/alert.svg" width="18" height="18" alt=""> **Truthful failure.** Reports uncertainty or engine unavailability instead of inventing a position or evaluation.
 
 ## Getting started
+
+### Download
+
+The signed universal APK is published on the [Releases](https://github.com/yangmetastasi104/ChessLens/releases) page as [`chesslens-v1.0.0-universal-release.apk`](https://github.com/yangmetastasi104/ChessLens/releases/download/v1.0.0/chesslens-v1.0.0-universal-release.apk). It contains the Stockfish engine for every supported ABI, so the same file can be installed on ARM64, ARMv7, x86, and x86_64 devices running Android 6.0 (API 23) or newer. The published SHA-256 checksum is available alongside the APK.
+
+The earlier `v1.0.0-debug` prerelease is a debug-signed ARM64 preview. Android will not install it over the release build (and vice versa) because the signing keys differ; uninstall the previous build before switching.
 
 ### Build
 
@@ -43,6 +49,14 @@ Requirements: JDK 17, Android SDK platform 35, and Android Build Tools 35.0.0.
 ```
 
 The debug APK is created at `app/build/outputs/apk/debug/app-debug.apk`.
+
+To produce a signed release APK, create `keystore.properties` in the repository root with `storeFile`, `storePassword`, `keyAlias`, and `keyPassword`, then run:
+
+```sh
+./gradlew assembleRelease
+```
+
+The release APK is created at `app/build/outputs/apk/release/app-release.apk`. Keystore files and `keystore.properties` are ignored by git. Back up the keystore and its passwords securely: Android requires the same signing key for every future update of an installed app.
 
 ### Use for a training session
 
@@ -65,7 +79,7 @@ Explicit training choice + FEN confirmation
                     │
     Legal continuation / uncertainty gate
                     │
-       Stockfish UCI (ARM64 only)
+       Stockfish UCI (ARM64 · ARMv7 · x86 · x86_64)
                     │
         Legal-move validation
                     │
@@ -76,9 +90,16 @@ The entered FEN supplies side-to-move, castling rights, en-passant square, and m
 
 ## Platform and engine
 
-The bundled engine is the portable ARM64 (`stockfish_nosimd`) UCI executable from F-Droid DroidFish 1.90. Its corresponding source revision, Android build files, provenance, and GPL notice are under [`third_party/stockfish-droidfish-1.90/`](third_party/stockfish-droidfish-1.90/). The matching NNUE networks are included in the app assets.
+ChessLens supports Android 6.0 (API 23) and newer. The universal APK bundles four portable (`stockfish_nosimd`) UCI executables from F-Droid DroidFish 1.90, one for each Android ABI:
 
-**Supported engine ABI:** `arm64-v8a`. Other ABIs report that the engine is unavailable; ChessLens does not substitute a fabricated evaluation or move.
+| ABI | Device type | Bundled executable |
+| --- | --- | --- |
+| `arm64-v8a` | 64-bit ARM phones and tablets | `stockfish/arm64-v8a/stockfish` |
+| `armeabi-v7a` | 32-bit ARM devices | `stockfish/armeabi-v7a/stockfish` |
+| `x86` | 32-bit Intel/AMD emulators and devices | `stockfish/x86/stockfish` |
+| `x86_64` | 64-bit Intel/AMD emulators and devices | `stockfish/x86_64/stockfish` |
+
+At runtime the app selects the first ABI reported by the device that has a bundled executable. If none matches, ChessLens reports that the engine is unavailable instead of substituting a fabricated evaluation or move. The corresponding source revision, Android build files, provenance, and GPL notice are under [`third_party/stockfish-droidfish-1.90/`](third_party/stockfish-droidfish-1.90/). The matching NNUE networks are included once in the app assets and shared by all four executables.
 
 ## Safety & privacy
 
@@ -94,7 +115,8 @@ The bundled engine is the portable ARM64 (`stockfish_nosimd`) UCI executable fro
 - Piece recognition uses visual templates calibrated from the supplied position and may fail across themes, animations, occlusion, or unusual board colors.
 - Special-move state depends on the supplied FEN and subsequent correctly tracked moves.
 - The prototype has unit-test coverage but has **not** been validated for recognition accuracy, latency, or engine startup on a physical device.
-- The bundled Stockfish engine is ARM64-only.
+- The 32-bit ARM and x86 executables are slower than the 64-bit builds. On low-memory devices, loading the 65 MB NNUE network may be delayed or fail; ChessLens reports engine unavailability rather than inventing a result.
+- The universal APK is large because it carries four engines and both NNUE networks. Android installs only one engine at runtime, but all assets are present in the package.
 
 ## Development
 

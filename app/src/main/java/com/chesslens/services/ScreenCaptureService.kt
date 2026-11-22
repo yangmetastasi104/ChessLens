@@ -10,11 +10,14 @@ import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.util.DisplayMetrics
 import android.view.WindowManager
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.chesslens.chess.ChessPosition
 import com.chesslens.chess.ChessMove
 import com.chesslens.chess.ChessRules
@@ -54,13 +57,10 @@ class ScreenCaptureService : Service() {
     private var shuttingDown = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        notificationManager.createNotificationChannel(NotificationChannel(CHANNEL, "ChessLens capture", NotificationManager.IMPORTANCE_LOW))
-        startForeground(1, Notification.Builder(this, CHANNEL)
-            .setContentTitle("ChessLens active")
-            .setContentText("Screen capture is running for your training session")
-            .setSmallIcon(android.R.drawable.ic_menu_view)
-            .build())
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, buildNotification(
+            "Screen capture is running for your training session", ongoing = true
+        ))
         val code = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
         val data = intent?.getParcelableExtra<Intent>(EXTRA_DATA)
         if (data == null) { stopSelf(); return START_NOT_STICKY }
@@ -199,13 +199,27 @@ class ScreenCaptureService : Service() {
         }
     }
 
-    private fun updateNotification(message: String) {
-        val notification = Notification.Builder(this, CHANNEL)
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager.createNotificationChannel(
+                NotificationChannel(CHANNEL, "ChessLens capture", NotificationManager.IMPORTANCE_LOW)
+            )
+        }
+    }
+
+    private fun buildNotification(message: String, ongoing: Boolean = false): Notification =
+        NotificationCompat.Builder(this, CHANNEL)
             .setContentTitle("ChessLens • training")
             .setContentText(message.take(100))
             .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(ongoing)
             .build()
-        getSystemService(NotificationManager::class.java).notify(1, notification)
+
+    private fun updateNotification(message: String) {
+        if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return
+        NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, buildNotification(message))
     }
 
     private fun Image.toRgbFrame(): RgbFrame? {
@@ -269,5 +283,6 @@ class ScreenCaptureService : Service() {
         const val EXTRA_BOTTOM = "bottom"
         private const val FRAME_INTERVAL_MS = 400L
         private const val CHANNEL = "chesslens_capture"
+        private const val NOTIFICATION_ID = 1
     }
 }

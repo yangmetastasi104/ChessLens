@@ -1,7 +1,17 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.isFile) {
+        FileInputStream(keystorePropertiesFile).use { load(it) }
+    }
 }
 
 android {
@@ -11,19 +21,38 @@ android {
 
     defaultConfig {
         applicationId = "com.chesslens"
-        minSdk = 29
+        minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true }
+    signingConfigs {
+        if (keystorePropertiesFile.isFile) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            if (keystorePropertiesFile.isFile) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
     packaging { jniLibs { useLegacyPackaging = true } }
+    lint { checkReleaseBuilds = false }
 }
 
 dependencies {

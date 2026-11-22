@@ -156,9 +156,17 @@ class StockfishManager(
     }
 
     companion object {
-        private const val ENGINE_ASSET = "stockfish/arm64-v8a/stockfish"
+        private val engineAssets = mapOf(
+            "arm64-v8a" to "stockfish/arm64-v8a/stockfish",
+            "armeabi-v7a" to "stockfish/armeabi-v7a/stockfish",
+            "x86" to "stockfish/x86/stockfish",
+            "x86_64" to "stockfish/x86_64/stockfish"
+        )
         private val assetSizes = mapOf(
-            ENGINE_ASSET to 674_208L,
+            "stockfish/arm64-v8a/stockfish" to 674_208L,
+            "stockfish/armeabi-v7a/stockfish" to 415_556L,
+            "stockfish/x86/stockfish" to 759_628L,
+            "stockfish/x86_64/stockfish" to 760_416L,
             "stockfish/nn-b1a57edbea57.nnue" to 65_429_575L,
             "stockfish/nn-baff1ede1f90.nnue" to 3_480_122L
         )
@@ -172,14 +180,16 @@ class StockfishManager(
             val engineDirectory = File(appContext.noBackupFilesDir, "chesslens-stockfish")
             val executable = File(engineDirectory, "stockfish")
             return StockfishManager(executable) {
-                if (!Build.SUPPORTED_ABIS.contains("arm64-v8a")) {
-                    throw EngineUnavailableException("The bundled Stockfish build currently supports ARM64 only.")
-                }
+                val abi = Build.SUPPORTED_ABIS.firstOrNull { it in engineAssets }
+                    ?: throw EngineUnavailableException(
+                        "No bundled Stockfish engine supports this device ABI (${Build.SUPPORTED_ABIS.joinToString()})."
+                    )
+                val engineAsset = engineAssets.getValue(abi)
                 try {
                     if (!engineDirectory.isDirectory && !engineDirectory.mkdirs()) {
                         throw EngineUnavailableException("Could not create the private Stockfish directory.")
                     }
-                    val assets = listOf(ENGINE_ASSET to executable) +
+                    val assets = listOf(engineAsset to executable) +
                         networkAssets.map { (asset, filename) -> asset to File(engineDirectory, filename) }
                     for ((assetPath, destination) in assets) {
                         val assetSize = assetSizes.getValue(assetPath)
