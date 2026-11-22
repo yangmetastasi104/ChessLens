@@ -1,6 +1,7 @@
 package com.chesslens.overlay
 
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.graphics.*
 import android.os.Build
@@ -19,8 +20,8 @@ class OverlayService : Service() {
     private lateinit var params: WindowManager.LayoutParams
     private lateinit var panelParams: WindowManager.LayoutParams
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (!android.provider.Settings.canDrawOverlays(this)) return START_NOT_STICKY
-        val wm = getSystemService(WindowManager::class.java)
+        if (!canDrawOverlays()) return START_NOT_STICKY
+        val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         if (view == null) {
             params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
@@ -64,6 +65,9 @@ class OverlayService : Service() {
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
+    private fun canDrawOverlays(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.M || android.provider.Settings.canDrawOverlays(this)
+
     @Suppress("DEPRECATION")
     private fun overlayWindowType(): Int =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -72,7 +76,7 @@ class OverlayService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
     override fun onDestroy() {
-        val wm = getSystemService(WindowManager::class.java)
+        val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         view?.let { runCatching { wm.removeView(it) } }
         panel?.let { runCatching { wm.removeView(it) } }
         view = null; panel = null

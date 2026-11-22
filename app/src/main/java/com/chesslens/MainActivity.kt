@@ -1,6 +1,7 @@
 package com.chesslens
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
@@ -48,11 +49,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun launchCapture() {
-        if (!Settings.canDrawOverlays(this)) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 Uri.parse("package:$packageName")))
         }
-        val manager = getSystemService(MediaProjectionManager::class.java)
+        val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         capturePermission.launch(manager.createScreenCaptureIntent())
     }
 

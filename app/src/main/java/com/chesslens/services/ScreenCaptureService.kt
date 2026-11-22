@@ -81,7 +81,8 @@ class ScreenCaptureService : Service() {
         }
         engine?.close()
         engine = StockfishManager.bundled(this)
-        projection = getSystemService(MediaProjectionManager::class.java).getMediaProjection(code, data)
+        projection = (getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager)
+            .getMediaProjection(code, data)
         projection?.registerCallback(object : MediaProjection.Callback() {
             override fun onStop() { stopSelf() }
         }, workerHandler)
@@ -201,7 +202,7 @@ class ScreenCaptureService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val notificationManager = getSystemService(NotificationManager::class.java)
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(
                 NotificationChannel(CHANNEL, "ChessLens capture", NotificationManager.IMPORTANCE_LOW)
             )

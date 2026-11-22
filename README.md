@@ -3,7 +3,7 @@
   <h1>ChessLens</h1>
   <p><strong>A local-first chess training companion for Android.</strong></p>
   <p>
-    <img alt="Android" src="https://img.shields.io/badge/Android-6.0%2B%20(API%2023)-3DDC84?logo=android&logoColor=white">
+    <img alt="Android" src="https://img.shields.io/badge/Android-5.0%2B%20(API%2021)-3DDC84?logo=android&logoColor=white">
     <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Compose-7F52FF?logo=kotlin&logoColor=white">
     <img alt="Training only" src="https://img.shields.io/badge/Use-training%20only-f97316">
     <img alt="Engine" src="https://img.shields.io/badge/Engine-Stockfish%20%C2%B7%204%20ABIs-2563eb">
@@ -36,7 +36,7 @@ ChessLens is an **experimental training tool**. With your explicit training sele
 
 ### Download
 
-The signed universal APK is published on the [Releases](https://github.com/yangmetastasi104/ChessLens/releases) page as [`chesslens-v1.0.0-universal-release.apk`](https://github.com/yangmetastasi104/ChessLens/releases/download/v1.0.0/chesslens-v1.0.0-universal-release.apk). It contains the Stockfish engine for every supported ABI, so the same file can be installed on ARM64, ARMv7, x86, and x86_64 devices running Android 6.0 (API 23) or newer. The published SHA-256 checksum is available alongside the APK.
+The signed universal APK is published on the [Releases](https://github.com/yangmetastasi104/ChessLens/releases) page as [`chesslens-v1.0.0-universal-release.apk`](https://github.com/yangmetastasi104/ChessLens/releases/download/v1.0.0/chesslens-v1.0.0-universal-release.apk). It contains the Stockfish engine for every supported ABI, so the same file can be installed on ARM64, ARMv7, x86, and x86_64 devices running Android 5.0 (API 21) or newer. The published SHA-256 checksum is available alongside the APK.
 
 The earlier `v1.0.0-debug` prerelease is a debug-signed ARM64 preview. Android will not install it over the release build (and vice versa) because the signing keys differ; uninstall the previous build before switching.
 
@@ -90,7 +90,7 @@ The entered FEN supplies side-to-move, castling rights, en-passant square, and m
 
 ## Platform and engine
 
-ChessLens supports Android 6.0 (API 23) and newer. The universal APK bundles four portable (`stockfish_nosimd`) UCI executables from F-Droid DroidFish 1.90, one for each Android ABI:
+ChessLens supports Android 5.0 (API 21) and newer. Android 4.4 and older cannot run the Compose UI stack used by the app and are not supported. The universal APK bundles four portable (`stockfish_nosimd`) UCI executables from F-Droid DroidFish 1.90, one for each Android ABI:
 
 | ABI | Device type | Bundled executable |
 | --- | --- | --- |
@@ -115,6 +115,7 @@ At runtime the app selects the first ABI reported by the device that has a bundl
 - Piece recognition uses visual templates calibrated from the supplied position and may fail across themes, animations, occlusion, or unusual board colors.
 - Special-move state depends on the supplied FEN and subsequent correctly tracked moves.
 - The prototype has unit-test coverage but has **not** been validated for recognition accuracy, latency, or engine startup on a physical device.
+- Android 5.0 and 5.1 grant the overlay permission at install time; Android 6.0 and newer require the user to grant it in Settings.
 - The 32-bit ARM and x86 executables are slower than the 64-bit builds. On low-memory devices, loading the 65 MB NNUE network may be delayed or fail; ChessLens reports engine unavailability rather than inventing a result.
 - The universal APK is large because it carries four engines and both NNUE networks. Android installs only one engine at runtime, but all assets are present in the package.
 
