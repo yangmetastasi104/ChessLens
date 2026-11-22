@@ -12,7 +12,8 @@
     <a href="#getting-started">Get started</a> ·
     <a href="#how-it-works">How it works</a> ·
     <a href="#safety--privacy">Safety & privacy</a> ·
-    <a href="#known-limitations">Limitations</a>
+    <a href="#known-limitations">Limitations</a> ·
+    <a href="https://github.com/yangmetastasi104/ChessLens/releases">Releases</a>
   </p>
 </div>
 
