@@ -1,6 +1,8 @@
 .gradle/
 .kotlin/
 build/
+!third_party/stockfish-droidfish-1.90/build/
+!third_party/stockfish-droidfish-1.90/build/**
 local.properties
 app/build/
 .idea/
