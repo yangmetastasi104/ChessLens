@@ -86,6 +86,8 @@ class MainActivity : ComponentActivity() {
                                 training = false
                                 captureRequestStillTraining = false
                                 visiblePositionConfirmed = false
+                                stopService(Intent(this@MainActivity, ScreenCaptureService::class.java))
+                                status = "Capture is off"
                             }, label = { Text("Not training") })
                         }
                         Text("Initial position (FEN)", style = MaterialTheme.typography.titleSmall)
