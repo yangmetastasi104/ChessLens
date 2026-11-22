@@ -20,16 +20,16 @@
 
 ChessLens is an **experimental training tool**. With your explicit training selection and Android’s screen-capture consent, it processes frames on-device, checks observed changes against legal chess moves, and can show a Stockfish suggestion in an overlay.
 
-> **Training only.** Do not use ChessLens during rated games, tournaments, or any activity where outside assistance is prohibited. Suggestions are disabled unless you affirm that the session is for permitted training.
+> <img src="docs/icons/shield-check.svg" width="18" height="18" alt=""> **Training only.** Do not use ChessLens during rated games, tournaments, or any activity where outside assistance is prohibited. Suggestions are disabled unless you affirm that the session is for permitted training.
 
 ## What it does
 
-- 📷 Captures the screen only after Android’s per-session MediaProjection consent.
-- ♟️ Tracks candidate board changes against a trusted, complete FEN and legal chess continuations.
-- 🧠 Runs a bundled Stockfish UCI engine and matching NNUE networks on supported ARM64 devices.
-- 🎯 Validates an engine move against the app’s legal-move generator before showing a suggestion.
-- 🔒 Processes frames locally in memory; it does not upload or save them.
-- 🛑 Reports uncertainty or engine unavailability instead of inventing a position or evaluation.
+- <img src="docs/icons/camera.svg" width="18" height="18" alt=""> **Consent-gated capture.** Captures the screen only after Android’s per-session MediaProjection consent.
+- <img src="docs/icons/board.svg" width="18" height="18" alt=""> **Legal-move tracking.** Checks candidate board changes against a trusted, complete FEN and legal chess continuations.
+- <img src="docs/icons/cpu.svg" width="18" height="18" alt=""> **Bundled engine.** Runs Stockfish with matching NNUE networks on supported ARM64 devices.
+- <img src="docs/icons/target.svg" width="18" height="18" alt=""> **Validated suggestions.** Accepts an engine move only after it passes the app’s legal-move generator.
+- <img src="docs/icons/lock.svg" width="18" height="18" alt=""> **Local by design.** Processes frames in memory; nothing is uploaded or saved.
+- <img src="docs/icons/alert.svg" width="18" height="18" alt=""> **Truthful failure.** Reports uncertainty or engine unavailability instead of inventing a position or evaluation.
 
 ## Getting started
 
