@@ -18,12 +18,15 @@ import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.chesslens.R
 import com.chesslens.chess.ChessPosition
 import com.chesslens.chess.ChessMove
 import com.chesslens.chess.ChessRules
 import com.chesslens.engine.EngineUnavailableException
 import com.chesslens.engine.SearchLimit
 import com.chesslens.engine.StockfishManager
+import com.chesslens.overlay.BoardCoordinates
+import com.chesslens.overlay.BoardRect
 import com.chesslens.overlay.OverlayService
 import com.chesslens.tracking.TrackingResult
 import com.chesslens.vision.FrameAnalysisPipeline
@@ -49,11 +52,19 @@ class ScreenCaptureService : Service() {
     private var pipeline: FrameAnalysisPipeline? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var engine: StockfishManager? = null
-    private var analysisJob: Job? = null
-    private var lastAnalyzedFen: String? = null
-    private var latestBoard: com.chesslens.vision.BoardGeometry? = null
-    private var latestWhiteAtBottom = true
+    @Volatile private var analysisJob: Job? = null
+    @Volatile private var lastAnalyzedFen: String? = null
+    @Volatile private var latestBoard: com.chesslens.vision.BoardGeometry? = null
+    @Volatile private var latestWhiteAtBottom = true
+    @Volatile private var frameWidth = 0
+    @Volatile private var frameHeight = 0
+    @Volatile private var captureWidth = 0
+    @Volatile private var captureHeight = 0
     private var lastFrameAt = 0L
+    @Volatile private var lastNotificationMessage = ""
+    @Volatile private var lastOverlayMessage = ""
+    @Volatile private var lastOverlayStatus = ""
+    @Volatile private var sessionGeneration = 0
     private var shuttingDown = false
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -73,6 +84,13 @@ class ScreenCaptureService : Service() {
         val fen = intent.getStringExtra(EXTRA_INITIAL_FEN) ?: run { stopSelf(); return START_NOT_STICKY }
         val whiteAtBottom = intent.getBooleanExtra(EXTRA_WHITE_AT_BOTTOM, true)
         latestWhiteAtBottom = whiteAtBottom
+        sessionGeneration++
+        analysisJob?.cancel()
+        lastAnalyzedFen = null
+        latestBoard = null
+        lastOverlayMessage = ""
+        lastOverlayStatus = ""
+        lastNotificationMessage = ""
         pipeline = try {
             FrameAnalysisPipeline(ChessPosition.fromFen(fen), whiteAtBottom)
         } catch (_: IllegalArgumentException) {
@@ -83,10 +101,15 @@ class ScreenCaptureService : Service() {
         engine = StockfishManager.bundled(this)
         projection = (getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager)
             .getMediaProjection(code, data)
+        startDisplay()
+        if (display == null) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         projection?.registerCallback(object : MediaProjection.Callback() {
             override fun onStop() { stopSelf() }
         }, workerHandler)
-        startDisplay()
+        sendOverlayClear("Capture active. Looking for the chessboard…")
         return START_NOT_STICKY
     }
 
@@ -95,6 +118,8 @@ class ScreenCaptureService : Service() {
         val metrics = DisplayMetrics()
         @Suppress("DEPRECATION")
         wm.defaultDisplay.getRealMetrics(metrics)
+        captureWidth = metrics.widthPixels
+        captureHeight = metrics.heightPixels
         val thread = HandlerThread("ChessLens-frame-analysis").apply { start() }
         worker = thread
         val handler = Handler(thread.looper)
@@ -119,48 +144,87 @@ class ScreenCaptureService : Service() {
         val activePipeline = pipeline ?: return
         val result = activePipeline.process(frame)
         latestBoard = result.board ?: latestBoard
-        if (result.tracking is TrackingResult.MoveAccepted || result.tracking == TrackingResult.Unchanged) {
+        latestWhiteAtBottom = activePipeline.currentWhiteAtBottom
+        val tracking = result.tracking
+        if (tracking is TrackingResult.MoveAccepted || tracking == TrackingResult.Unchanged) {
             activePipeline.currentPosition.toFen()?.let { fen ->
                 if (fen != lastAnalyzedFen) startAnalysis(fen, result.message)
             }
-        }
-        if (result.tracking == TrackingResult.RecognitionMismatch || result.board == null) {
+        } else if (tracking == null && result.board != null) {
+            // A move is being confirmed. Keep the last legal advice briefly instead
+            // of cancelling a healthy engine search on a single noisy frame.
+            sendOverlayStatus("Confirming position…")
+        } else {
+            // A changed, ambiguous, or unrecognized frame must not leave stale advice.
             analysisJob?.cancel()
             lastAnalyzedFen = null
-            startService(Intent(this, OverlayService::class.java).apply {
-                action = OverlayService.ACTION_CLEAR
-                putExtra(OverlayService.EXTRA_TEXT, result.message)
-            })
+            sendOverlayClear(
+                if (result.board == null) result.message
+                else "Position not accepted: ${result.message}"
+            )
         }
-        if (result.message.startsWith("Move detected:") || result.message.startsWith("Chessboard") ||
-            result.message.startsWith("Uncertain"))
+        if (result.message != lastNotificationMessage) {
+            lastNotificationMessage = result.message
             updateNotification(result.message)
+        }
+    }
+
+    private fun sendOverlayClear(message: String) {
+        if (message == lastOverlayMessage) return
+        lastOverlayMessage = message
+        lastOverlayStatus = ""
+        startService(Intent(this, OverlayService::class.java).apply {
+            action = OverlayService.ACTION_CLEAR
+            putExtra(OverlayService.EXTRA_TEXT, message)
+        })
+    }
+
+    private fun sendOverlayStatus(message: String) {
+        if (message == lastOverlayStatus) return
+        lastOverlayStatus = message
+        // A status change replaces the panel text, so the next clear must be sent.
+        lastOverlayMessage = ""
+        startService(Intent(this, OverlayService::class.java).apply {
+            action = OverlayService.ACTION_STATUS
+            putExtra(OverlayService.EXTRA_TEXT, message)
+        })
     }
 
     private fun startAnalysis(fen: String, reason: String) {
         lastAnalyzedFen = fen
         analysisJob?.cancel()
+        lastOverlayMessage = "Analyzing current position…"
+        lastOverlayStatus = ""
         startService(Intent(this, OverlayService::class.java).apply {
             action = OverlayService.ACTION_CLEAR
             putExtra(OverlayService.EXTRA_TEXT, "Analyzing current position…")
+            putExtra(OverlayService.EXTRA_STATUS, "Stockfish is calculating a legal move.")
         })
-        val manager = engine ?: return
+        val manager = engine ?: run {
+            sendOverlayClear("Stockfish unavailable; no move suggested")
+            return
+        }
+        val generation = sessionGeneration
         analysisJob = serviceScope.launch {
             try {
-                val result = manager.analyze(fen, SearchLimit(depth = 18)) { info ->
+                val result = manager.analyze(fen, SearchLimit(depth = 18, moveTimeMillis = 2_500)) { info ->
+                    if (generation != sessionGeneration) return@analyze
                     val eval = info.mateIn?.let { "M$it" }
                         ?: info.evaluationPawns?.let { "%+.2f".format(java.util.Locale.US, it) }
                         ?: "—"
                     updateNotification("Depth ${info.depth} • $eval")
                 }
+                if (generation != sessionGeneration) return@launch
                 val uci = result.bestMove ?: run {
                     updateNotification("No legal engine move")
+                    sendOverlayClear("No legal engine move")
                     return@launch
                 }
                 val currentPosition = pipeline?.currentPosition ?: return@launch
                 if (currentPosition.toFen() != fen || lastAnalyzedFen != fen) return@launch
                 if (uci.length !in 4..5) {
                     updateNotification("Engine returned an invalid move")
+                    sendOverlayClear("Engine returned an invalid move")
                     return@launch
                 }
                 val move = runCatching {
@@ -174,28 +238,58 @@ class ScreenCaptureService : Service() {
                 }.getOrNull()
                 if (move == null || move !in ChessRules.legalMoves(currentPosition)) {
                     updateNotification("Engine move failed legal-move validation")
+                    sendOverlayClear("Engine move failed legal-move validation")
                     return@launch
                 }
-                val board = latestBoard ?: return@launch
+                val board = latestBoard ?: run {
+                    sendOverlayClear("Chessboard not found; no arrow")
+                    return@launch
+                }
+                if (frameWidth <= 0 || frameHeight <= 0 || captureWidth <= 0 || captureHeight <= 0) {
+                    sendOverlayClear("Board geometry is not ready")
+                    return@launch
+                }
+                val scaled = BoardCoordinates.scale(
+                    BoardRect(board.left, board.top, board.right, board.bottom),
+                    frameWidth, frameHeight, captureWidth, captureHeight
+                )
+                val orientation = pipeline?.currentWhiteAtBottom ?: latestWhiteAtBottom
+                val evalText = result.info?.mateIn?.let { "M$it" }
+                    ?: result.info?.evaluationPawns?.let { "%+.2f".format(java.util.Locale.US, it) }
+                    ?: ""
+                val status = if (evalText.isEmpty()) {
+                    "Legal move validated by ChessLens."
+                } else {
+                    "Depth ${result.info?.depth ?: "?"} · $evalText · legal move validated."
+                }
+                lastOverlayMessage = ""
+                lastOverlayStatus = ""
                 startService(Intent(this@ScreenCaptureService, OverlayService::class.java).apply {
                     action = OverlayService.ACTION_SUGGESTION
                     putExtra(OverlayService.EXTRA_FROM, ChessRules.squareName(move.from))
                     putExtra(OverlayService.EXTRA_TO, ChessRules.squareName(move.to))
-                    putExtra(OverlayService.EXTRA_LEFT, board.left)
-                    putExtra(OverlayService.EXTRA_TOP, board.top)
-                    putExtra(OverlayService.EXTRA_RIGHT, board.right)
-                    putExtra(OverlayService.EXTRA_BOTTOM, board.bottom)
-                    putExtra(OverlayService.EXTRA_WHITE_AT_BOTTOM, latestWhiteAtBottom)
+                    putExtra(OverlayService.EXTRA_LEFT, scaled.left)
+                    putExtra(OverlayService.EXTRA_TOP, scaled.top)
+                    putExtra(OverlayService.EXTRA_RIGHT, scaled.right)
+                    putExtra(OverlayService.EXTRA_BOTTOM, scaled.bottom)
+                    putExtra(OverlayService.EXTRA_WHITE_AT_BOTTOM, orientation)
                     putExtra(OverlayService.EXTRA_TEXT,
                         "${ChessRules.squareName(move.from)} → ${ChessRules.squareName(move.to)}")
+                    putExtra(OverlayService.EXTRA_STATUS, status)
                 })
                 updateNotification("$reason • best move ${uci.take(4)}")
             } catch (_: CancellationException) {
                 // Position changed; canceled search must not publish stale advice.
             } catch (e: EngineUnavailableException) {
-                updateNotification("Stockfish unavailable; no move suggested")
+                if (generation == sessionGeneration) {
+                    updateNotification("Stockfish unavailable; no move suggested")
+                    sendOverlayClear("Stockfish unavailable; no move suggested")
+                }
             } catch (e: Exception) {
-                updateNotification("Engine analysis failed")
+                if (generation == sessionGeneration) {
+                    updateNotification("Engine analysis failed")
+                    sendOverlayClear("Engine analysis failed")
+                }
             }
         }
     }
@@ -213,7 +307,7 @@ class ScreenCaptureService : Service() {
         NotificationCompat.Builder(this, CHANNEL)
             .setContentTitle("ChessLens • training")
             .setContentText(message.take(100))
-            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setSmallIcon(R.drawable.ic_stat_chesslens)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(ongoing)
             .build()
@@ -231,6 +325,8 @@ class ScreenCaptureService : Service() {
         val scale = minOf(1.0, 320.0 / width, 640.0 / height)
         val outWidth = (width * scale).toInt().coerceAtLeast(1)
         val outHeight = (height * scale).toInt().coerceAtLeast(1)
+        frameWidth = outWidth
+        frameHeight = outHeight
         val pixels = IntArray(outWidth * outHeight)
         val base = buffer.position()
         for (y in 0 until outHeight) for (x in 0 until outWidth) {

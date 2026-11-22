@@ -51,4 +51,17 @@ class ChessRulesTest {
         assertEquals(TrackingResult.RecognitionMismatch, tracker.observe(bad))
         assertEquals(after, tracker.position)
     }
+
+    @Test fun trackerAcceptsAPartialObservationWhenExactlyOneMoveFits() {
+        val position = ChessPosition.fromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+        val tracker = MoveTracker(position)
+        val after = ChessRules.apply(position, ChessMove(ChessRules.parseSquare("e2"), ChessRules.parseSquare("e4")))
+        val partial = after.squares.mapIndexed { index, piece ->
+            if (index == 0 || index == 63) '?' else piece
+        }
+        val result = tracker.observePartial(partial)
+        assertTrue(result is TrackingResult.MoveAccepted)
+        assertEquals("e2e4", (result as TrackingResult.MoveAccepted).uci)
+        assertEquals(after, tracker.position)
+    }
 }

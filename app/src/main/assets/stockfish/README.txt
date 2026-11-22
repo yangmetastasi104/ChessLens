@@ -1,12 +1,17 @@
 ChessLens bundles four portable Stockfish UCI executables and two shared NNUE
 evaluation networks from DroidFish 1.90 / F-Droid version code 100:
 
-  arm64-v8a/stockfish   64-bit ARM
-  armeabi-v7a/stockfish 32-bit ARM
-  x86/stockfish         32-bit Intel
-  x86_64/stockfish      64-bit Intel
+  lib/arm64-v8a/libstockfish.so   64-bit ARM
+  lib/armeabi-v7a/libstockfish.so 32-bit ARM
+  lib/x86/libstockfish.so         32-bit Intel
+  lib/x86_64/libstockfish.so      64-bit Intel
 
-At runtime ChessLens installs only the executable matching the device ABI.
+The engines are packaged as native libraries so Android 10 and newer can
+execute the matching binary from the read-only native library directory.
+Android 10 blocks execution from writable app data. At install time Android
+extracts only the ABI that matches the device; ChessLens runs the extracted
+binary with the private NNUE directory as its working directory. The two NNUE
+networks remain in assets and are copied to private storage on first use.
 
 Pinned source commit:
 https://github.com/peterosterlund2/droidfish/tree/06948d542f5b354624a8d88fc5d6f3019669e539

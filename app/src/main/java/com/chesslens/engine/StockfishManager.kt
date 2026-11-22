@@ -39,6 +39,7 @@ data class EngineResult(val bestMove: String?, val info: EngineInfo?)
  */
 class StockfishManager(
     private val executable: File,
+    private val workingDirectory: File? = null,
     private val initialize: suspend () -> Unit = {}
 ) : Closeable {
     private val searchMutex = Mutex()
@@ -96,7 +97,7 @@ class StockfishManager(
         if (!executable.canExecute() && !executable.setExecutable(true))
             throw EngineUnavailableException("Stockfish executable is not runnable: ${executable.absolutePath}")
         val proc = ProcessBuilder(executable.absolutePath)
-            .directory(executable.parentFile)
+            .directory(workingDirectory ?: executable.parentFile)
             .redirectErrorStream(true)
             .start()
         process = proc
@@ -111,11 +112,13 @@ class StockfishManager(
         }, "ChessLens-Stockfish-UCI").apply { isDaemon = true; start() }
         readerThread = thread
         send("uci")
-        withTimeout(10_000) {
+        // Stockfish loads the NNUE networks before it answers the first UCI
+        // command. Reading the 65 MB network can be slow on 32-bit devices.
+        withTimeout(60_000) {
             while (output.receive() != "uciok") Unit
         }
         send("isready")
-        withTimeout(5_000) {
+        withTimeout(30_000) {
             while (output.receive() != "readyok") Unit
         }
     }
@@ -156,64 +159,75 @@ class StockfishManager(
     }
 
     companion object {
-        private val engineAssets = mapOf(
-            "arm64-v8a" to "stockfish/arm64-v8a/stockfish",
-            "armeabi-v7a" to "stockfish/armeabi-v7a/stockfish",
-            "x86" to "stockfish/x86/stockfish",
-            "x86_64" to "stockfish/x86_64/stockfish"
-        )
-        private val assetSizes = mapOf(
-            "stockfish/arm64-v8a/stockfish" to 674_208L,
-            "stockfish/armeabi-v7a/stockfish" to 415_556L,
-            "stockfish/x86/stockfish" to 759_628L,
-            "stockfish/x86_64/stockfish" to 760_416L,
-            "stockfish/nn-b1a57edbea57.nnue" to 65_429_575L,
-            "stockfish/nn-baff1ede1f90.nnue" to 3_480_122L
+        /**
+         * The engines are packaged as native libraries, not assets. Android 10+
+         * forbids executing files from the writable app home directory, but the
+         * read-only native library directory remains executable. Stockfish still
+         * runs with its writable NNUE directory as its working directory.
+         */
+        private val engineSizes = mapOf(
+            "arm64-v8a" to 674_208L,
+            "armeabi-v7a" to 415_556L,
+            "x86" to 759_628L,
+            "x86_64" to 760_416L
         )
         private val networkAssets = listOf(
             "stockfish/nn-b1a57edbea57.nnue" to "nn-b1a57edbea57.nnue",
             "stockfish/nn-baff1ede1f90.nnue" to "nn-baff1ede1f90.nnue"
         )
+        private val networkSizes = mapOf(
+            "stockfish/nn-b1a57edbea57.nnue" to 65_429_575L,
+            "stockfish/nn-baff1ede1f90.nnue" to 3_480_122L
+        )
 
         fun bundled(context: Context): StockfishManager {
             val appContext = context.applicationContext
             val engineDirectory = File(appContext.noBackupFilesDir, "chesslens-stockfish")
-            val executable = File(engineDirectory, "stockfish")
-            return StockfishManager(executable) {
-                val abi = Build.SUPPORTED_ABIS.firstOrNull { it in engineAssets }
+            val nativeDirectory = appContext.applicationInfo.nativeLibraryDir
+            if (nativeDirectory.isNullOrBlank()) {
+                throw EngineUnavailableException(
+                    "Android did not provide a native library directory for the bundled Stockfish engine."
+                )
+            }
+            val executable = File(nativeDirectory, "libstockfish.so")
+            return StockfishManager(executable, engineDirectory) {
+                val abi = Build.SUPPORTED_ABIS.firstOrNull { it in engineSizes }
                     ?: throw EngineUnavailableException(
                         "No bundled Stockfish engine supports this device ABI (${Build.SUPPORTED_ABIS.joinToString()})."
                     )
-                val engineAsset = engineAssets.getValue(abi)
                 try {
                     if (!engineDirectory.isDirectory && !engineDirectory.mkdirs()) {
                         throw EngineUnavailableException("Could not create the private Stockfish directory.")
                     }
-                    val assets = listOf(engineAsset to executable) +
-                        networkAssets.map { (asset, filename) -> asset to File(engineDirectory, filename) }
-                    for ((assetPath, destination) in assets) {
-                        val assetSize = assetSizes.getValue(assetPath)
+                    for ((assetPath, filename) in networkAssets) {
+                        val destination = File(engineDirectory, filename)
+                        val assetSize = networkSizes.getValue(assetPath)
                         if (destination.isFile && destination.length() == assetSize) continue
-                        val temporary = File(engineDirectory, "${destination.name}.partial")
+                        val temporary = File(engineDirectory, "$filename.partial")
                         try {
                             appContext.assets.open(assetPath).use { input ->
                                 temporary.outputStream().buffered().use { output -> input.copyTo(output) }
                             }
                             if (temporary.length() != assetSize) {
-                                throw EngineUnavailableException("Bundled Stockfish file has an invalid size: ${destination.name}")
+                                throw EngineUnavailableException("Bundled Stockfish network has an invalid size: $filename")
                             }
                             if (!temporary.renameTo(destination)) {
                                 destination.delete()
                                 if (!temporary.renameTo(destination)) {
-                                    throw EngineUnavailableException("Could not install bundled Stockfish file ${destination.name}")
+                                    throw EngineUnavailableException("Could not install bundled Stockfish network $filename")
                                 }
                             }
                         } finally {
                             temporary.delete()
                         }
                     }
-                    if (!executable.setExecutable(true, true) && !executable.canExecute()) {
-                        throw EngineUnavailableException("Could not mark bundled Stockfish executable as runnable.")
+                    if (!executable.isFile || executable.length() == 0L) {
+                        throw EngineUnavailableException(
+                            "Bundled Stockfish for $abi is missing at ${executable.absolutePath}. Reinstall the APK."
+                        )
+                    }
+                    if (!executable.canExecute() && !executable.setExecutable(true, false)) {
+                        throw EngineUnavailableException("Could not mark the bundled Stockfish executable as runnable.")
                     }
                 } catch (e: EngineUnavailableException) {
                     throw e

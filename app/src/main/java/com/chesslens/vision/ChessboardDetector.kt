@@ -26,7 +26,7 @@ class ChessboardDetector {
             best = search(frame, cell - maxOf(2, cell / 8), cell + maxOf(2, cell / 8), cx - cell, cx + cell, cy - cell, cy + cell)
         }
         val minSide = minOf(frame.width, frame.height)
-        val global = search(frame, maxOf(8, minSide / 16), minSide / 8,
+        val global = search(frame, maxOf(8, minSide / 18), minSide / 7,
             0, frame.width, 0, frame.height)
         if (global != null && (best == null || global.score > best.score)) best = global
         val candidate = best?.let { refine(frame, it) } ?: return null
@@ -47,14 +47,18 @@ class ChessboardDetector {
 
     private fun refine(frame: RgbFrame, coarse: Candidate): Candidate {
         var best = coarse
-        val radius = maxOf(1, coarse.cell / 2)
-        val minX = (coarse.x - radius).coerceAtLeast(0)
-        val maxX = minOf(frame.width - coarse.cell * 8, coarse.x + radius)
-        val minY = (coarse.y - radius).coerceAtLeast(0)
-        val maxY = minOf(frame.height - coarse.cell * 8, coarse.y + radius)
-        for (y in minY..maxY) for (x in minX..maxX) {
-            val score = checkerScore(frame, x, y, coarse.cell)
-            if (score > best.score) best = Candidate(x, y, coarse.cell, score)
+        for (cell in (coarse.cell - 2).coerceAtLeast(8)..(coarse.cell + 2)) {
+            val side = cell * 8
+            if (side > frame.width || side > frame.height) continue
+            val radius = maxOf(1, cell / 2)
+            val minX = (coarse.x - radius).coerceAtLeast(0)
+            val maxX = minOf(frame.width - side, coarse.x + radius)
+            val minY = (coarse.y - radius).coerceAtLeast(0)
+            val maxY = minOf(frame.height - side, coarse.y + radius)
+            for (y in minY..maxY) for (x in minX..maxX) {
+                val score = checkerScore(frame, x, y, cell)
+                if (score > best.score) best = Candidate(x, y, cell, score)
+            }
         }
         return best
     }

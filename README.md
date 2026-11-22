@@ -36,7 +36,9 @@ ChessLens is an **experimental training tool**. With your explicit training sele
 
 ### Download
 
-The signed universal APK is published on the [Releases](https://github.com/yangmetastasi104/ChessLens/releases) page as [`chesslens-v1.0.0-universal-release.apk`](https://github.com/yangmetastasi104/ChessLens/releases/download/v1.0.0/chesslens-v1.0.0-universal-release.apk). It contains the Stockfish engine for every supported ABI, so the same file can be installed on ARM64, ARMv7, x86, and x86_64 devices running Android 5.0 (API 21) or newer. The published SHA-256 checksum is available alongside the APK.
+The signed universal APK is published on the [Releases](https://github.com/yangmetastasi104/ChessLens/releases) page as [`chesslens-v1.1.0-universal-release.apk`](https://github.com/yangmetastasi104/ChessLens/releases/download/v1.1.0/chesslens-v1.1.0-universal-release.apk). It contains the Stockfish engine for every supported ABI, so the same file can be installed on ARM64, ARMv7, x86, and x86_64 devices running Android 5.0 (API 21) or newer. The published SHA-256 checksum is available alongside the APK.
+
+Version 1.1.0 fixes the launcher icon, the Android 10+ engine execution failure, the overlay-to-screen coordinate mapping, and the floating panel. The panel is now larger, uses density-aware text, can be dragged, and can be resized from its bottom-right corner; its size and position are remembered between sessions. Recognition now tolerates a few uncertain squares by matching them against legal moves, and engine analysis is time-bounded so suggestions appear sooner.
 
 The earlier `v1.0.0-debug` prerelease is a debug-signed ARM64 preview. Android will not install it over the release build (and vice versa) because the signing keys differ; uninstall the previous build before switching.
 
@@ -65,6 +67,7 @@ The release APK is created at `app/build/outputs/apk/release/app-release.apk`. K
 3. Confirm that the visible board matches that FEN and select the board orientation.
 4. Grant overlay permission if Android requests it, then approve the screen-capture prompt.
 5. Keep the board stable while ChessLens calibrates. A suggestion appears only after a position is accepted and the engine’s move passes legal-move validation.
+6. Drag the floating panel to move it. Drag its bottom-right corner to resize it; the app remembers the chosen size and position.
 
 Select **Not training** or stop/revoke screen capture to end the session. ChessLens does not identify which app is visible and cannot verify that a venue permits assistance.
 
@@ -92,12 +95,14 @@ The entered FEN supplies side-to-move, castling rights, en-passant square, and m
 
 ChessLens supports Android 5.0 (API 21) and newer. Android 4.4 and older cannot run the Compose UI stack used by the app and are not supported. The universal APK bundles four portable (`stockfish_nosimd`) UCI executables from F-Droid DroidFish 1.90, one for each Android ABI:
 
-| ABI | Device type | Bundled executable |
+| ABI | Device type | Packaged native library |
 | --- | --- | --- |
-| `arm64-v8a` | 64-bit ARM phones and tablets | `stockfish/arm64-v8a/stockfish` |
-| `armeabi-v7a` | 32-bit ARM devices | `stockfish/armeabi-v7a/stockfish` |
-| `x86` | 32-bit Intel/AMD emulators and devices | `stockfish/x86/stockfish` |
-| `x86_64` | 64-bit Intel/AMD emulators and devices | `stockfish/x86_64/stockfish` |
+| `arm64-v8a` | 64-bit ARM phones and tablets | `lib/arm64-v8a/libstockfish.so` |
+| `armeabi-v7a` | 32-bit ARM devices | `lib/armeabi-v7a/libstockfish.so` |
+| `x86` | 32-bit Intel/AMD emulators and devices | `lib/x86/libstockfish.so` |
+| `x86_64` | 64-bit Intel/AMD emulators and devices | `lib/x86_64/libstockfish.so` |
+
+The engines are packaged as native libraries rather than assets so Android 10 and newer can execute the matching binary from the read-only native library directory; Android 10 blocks execution from writable app data. At install time Android extracts the ABI that matches the device. The engine runs with the private NNUE directory as its working directory, so Stockfish can load the networks without writing into the native library directory.
 
 At runtime the app selects the first ABI reported by the device that has a bundled executable. If none matches, ChessLens reports that the engine is unavailable instead of substituting a fabricated evaluation or move. The corresponding source revision, Android build files, provenance, and GPL notice are under [`third_party/stockfish-droidfish-1.90/`](third_party/stockfish-droidfish-1.90/). The matching NNUE networks are included once in the app assets and shared by all four executables.
 
@@ -112,7 +117,8 @@ At runtime the app selects the first ABI reported by the device that has a bundl
 ## Known limitations
 
 - Board detection assumes an axis-aligned board; perspective and tilt correction are not implemented.
-- Piece recognition uses visual templates calibrated from the supplied position and may fail across themes, animations, occlusion, or unusual board colors.
+- Piece recognition uses visual templates calibrated from the supplied position and may fail across themes, animations, occlusion, or unusual board colors. The legal-move gate can reconcile a small number of uncertain squares, but it cannot recover a board that is mostly unrecognized.
+- If the panel reports uncertain squares, stop capture, enter the current visible FEN, and restart the session. ChessLens will not invent a position or a move.
 - Special-move state depends on the supplied FEN and subsequent correctly tracked moves.
 - The prototype has unit-test coverage but has **not** been validated for recognition accuracy, latency, or engine startup on a physical device.
 - Android 5.0 and 5.1 grant the overlay permission at install time; Android 6.0 and newer require the user to grant it in Settings.

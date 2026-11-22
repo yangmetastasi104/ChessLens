@@ -23,8 +23,8 @@ android {
         applicationId = "com.chesslens"
         minSdk = 21
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true }
@@ -51,7 +51,14 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    packaging { jniLibs { useLegacyPackaging = true } }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            // The Stockfish binaries are executables renamed to lib*.so so the
+            // installer extracts them into the executable native library directory.
+            keepDebugSymbols += "**/libstockfish.so"
+        }
+    }
     lint { checkReleaseBuilds = false }
 }
 

@@ -6,6 +6,17 @@ data class BoardRect(val left: Float, val top: Float, val right: Float, val bott
 }
 
 object BoardCoordinates {
+    /**
+     * Capture frames are downsampled before vision processing, but the overlay
+     * uses real screen pixels. Scale the detected board back to screen space.
+     */
+    fun scale(board: BoardRect, frameWidth: Int, frameHeight: Int, screenWidth: Int, screenHeight: Int): BoardRect {
+        require(frameWidth > 0 && frameHeight > 0 && screenWidth > 0 && screenHeight > 0)
+        val sx = screenWidth.toFloat() / frameWidth
+        val sy = screenHeight.toFloat() / frameHeight
+        return BoardRect(board.left * sx, board.top * sy, board.right * sx, board.bottom * sy)
+    }
+
     fun center(square: String, board: BoardRect, whiteAtBottom: Boolean): Pair<Float, Float> {
         require(square.matches(Regex("[a-h][1-8]"))) { "Invalid square: $square" }
         val file = square[0] - 'a'
