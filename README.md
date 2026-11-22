@@ -36,9 +36,9 @@ ChessLens is an **experimental training tool**. With your explicit training sele
 
 ### Download
 
-The signed universal APK is published on the [Releases](https://github.com/yangmetastasi104/ChessLens/releases) page as [`chesslens-v1.1.0-universal-release.apk`](https://github.com/yangmetastasi104/ChessLens/releases/download/v1.1.0/chesslens-v1.1.0-universal-release.apk). It contains the Stockfish engine for every supported ABI, so the same file can be installed on ARM64, ARMv7, x86, and x86_64 devices running Android 5.0 (API 21) or newer. The published SHA-256 checksum is available alongside the APK.
+The signed universal APK is published on the [Releases](https://github.com/yangmetastasi104/ChessLens/releases) page as [`chesslens-v1.1.1-universal-release.apk`](https://github.com/yangmetastasi104/ChessLens/releases/download/v1.1.1/chesslens-v1.1.1-universal-release.apk). It contains the Stockfish engine for every supported ABI, so the same file can be installed on ARM64, ARMv7, x86, and x86_64 devices running Android 5.0 (API 21) or newer. The published SHA-256 checksum is available alongside the APK.
 
-Version 1.1.0 fixes the launcher icon, the Android 10+ engine execution failure, the overlay-to-screen coordinate mapping, and the floating panel. The panel is now larger, uses density-aware text, can be dragged, and can be resized from its bottom-right corner; its size and position are remembered between sessions. Recognition now tolerates a few uncertain squares by matching them against legal moves, and engine analysis is time-bounded so suggestions appear sooner.
+Version 1.1.1 fixes screen capture startup on Android 14 and newer by registering the required MediaProjection callback before creating the virtual display. It also shows the overlay panel as soon as a capture session starts and reports capture startup errors in the panel. Version 1.1.0 added the launcher icon, fixed Stockfish execution on Android 10+, corrected board-to-screen coordinate mapping, and introduced the larger draggable and resizable panel.
 
 The earlier `v1.0.0-debug` prerelease is a debug-signed ARM64 preview. Android will not install it over the release build (and vice versa) because the signing keys differ; uninstall the previous build before switching.
 

@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.chesslens.chess.ChessPosition
+import com.chesslens.overlay.OverlayService
 import com.chesslens.services.ScreenCaptureService
 
 class MainActivity : ComponentActivity() {
@@ -65,6 +66,11 @@ class MainActivity : ComponentActivity() {
             statusText = "Overlay permission is required for on-board suggestions."
             return@registerForActivityResult
         }
+        startService(Intent(this, OverlayService::class.java).apply {
+            action = OverlayService.ACTION_CLEAR
+            putExtra(OverlayService.EXTRA_TEXT, "Starting screen capture…")
+            putExtra(OverlayService.EXTRA_STATUS, "Keep the chessboard visible and stable.")
+        })
         ContextCompat.startForegroundService(this, Intent(this, ScreenCaptureService::class.java).apply {
             putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
             putExtra(ScreenCaptureService.EXTRA_DATA, result.data)

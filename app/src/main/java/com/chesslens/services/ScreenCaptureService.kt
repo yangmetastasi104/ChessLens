@@ -99,16 +99,27 @@ class ScreenCaptureService : Service() {
         }
         engine?.close()
         engine = StockfishManager.bundled(this)
-        projection = (getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager)
-            .getMediaProjection(code, data)
-        startDisplay()
-        if (display == null) {
+        try {
+            projection = (getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager)
+                .getMediaProjection(code, data)
+                ?: throw IllegalStateException("Android did not create a screen-capture session.")
+            val thread = HandlerThread("ChessLens-frame-analysis").apply { start() }
+            worker = thread
+            workerHandler = Handler(thread.looper)
+            // Android 14+ requires a callback to be registered before the first
+            // VirtualDisplay is created from a MediaProjection token.
+            projection?.registerCallback(object : MediaProjection.Callback() {
+                override fun onStop() { stopSelf() }
+            }, workerHandler)
+            startDisplay()
+            if (display == null) {
+                throw IllegalStateException("Android could not create the screen-capture display.")
+            }
+        } catch (error: Exception) {
+            sendOverlayClear("Screen capture failed: ${error.message ?: "permission or system error"}")
             stopSelf()
             return START_NOT_STICKY
         }
-        projection?.registerCallback(object : MediaProjection.Callback() {
-            override fun onStop() { stopSelf() }
-        }, workerHandler)
         sendOverlayClear("Capture active. Looking for the chessboard…")
         return START_NOT_STICKY
     }
@@ -120,10 +131,7 @@ class ScreenCaptureService : Service() {
         wm.defaultDisplay.getRealMetrics(metrics)
         captureWidth = metrics.widthPixels
         captureHeight = metrics.heightPixels
-        val thread = HandlerThread("ChessLens-frame-analysis").apply { start() }
-        worker = thread
-        val handler = Handler(thread.looper)
-        workerHandler = handler
+        val handler = workerHandler ?: return
         val reader = ImageReader.newInstance(metrics.widthPixels, metrics.heightPixels, PixelFormat.RGBA_8888, 2)
         imageReader = reader
         reader.setOnImageAvailableListener({ source ->
