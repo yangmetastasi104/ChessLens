@@ -2,6 +2,7 @@ package com.chesslens.chess
 
 import com.chesslens.tracking.MoveTracker
 import com.chesslens.tracking.TrackingResult
+import com.chesslens.vision.FrameAnalysisPipeline
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -63,5 +64,39 @@ class ChessRulesTest {
         assertTrue(result is TrackingResult.MoveAccepted)
         assertEquals("e2e4", (result as TrackingResult.MoveAccepted).uci)
         assertEquals(after, tracker.position)
+    }
+
+    @Test fun trackerRecoversWhenTwoPlyFramesWereMissed() {
+        val position = ChessPosition.fromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+        val tracker = MoveTracker(position)
+        val afterWhite = ChessRules.apply(
+            position,
+            ChessMove(ChessRules.parseSquare("e2"), ChessRules.parseSquare("e4"))
+        )
+        val afterBlack = ChessRules.apply(
+            afterWhite,
+            ChessMove(ChessRules.parseSquare("e7"), ChessRules.parseSquare("e5"))
+        )
+
+        val result = tracker.observePartial(afterBlack.squares)
+
+        assertTrue(result is TrackingResult.PositionReconciled)
+        assertEquals(2, (result as TrackingResult.PositionReconciled).plies)
+        assertEquals(afterBlack, tracker.position)
+    }
+
+    @Test fun playerSideIsAlwaysTheBottomSideAndControlsSuggestionTurn() {
+        val whiteToMove = ChessPosition.fromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+        val blackPlayer = FrameAnalysisPipeline(whiteToMove, whiteAtBottom = false)
+        assertFalse(blackPlayer.playerIsWhite)
+        assertFalse(blackPlayer.isPlayerTurn)
+
+        val blackToMove = ChessPosition.fromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1")
+        val blackPlayerTurn = FrameAnalysisPipeline(blackToMove, whiteAtBottom = false)
+        assertTrue(blackPlayerTurn.isPlayerTurn)
+
+        val whitePlayer = FrameAnalysisPipeline(whiteToMove, whiteAtBottom = true)
+        assertTrue(whitePlayer.playerIsWhite)
+        assertTrue(whitePlayer.isPlayerTurn)
     }
 }

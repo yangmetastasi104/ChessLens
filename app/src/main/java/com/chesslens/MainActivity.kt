@@ -179,17 +179,18 @@ class MainActivity : ComponentActivity() {
                             Text("I confirm the visible board currently matches this FEN.")
                         }
 
+                        Text("I tuoi pezzi sono sempre in basso. Seleziona il tuo colore:")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(selected = whiteAtBottom, onClick = {
                                 whiteAtBottom = true
                                 captureRequestStillTraining = false
                                 visiblePositionConfirmed = false
-                            }, label = { Text("White at bottom") })
+                            }, label = { Text("Io: Bianco") })
                             FilterChip(selected = !whiteAtBottom, onClick = {
                                 whiteAtBottom = false
                                 captureRequestStillTraining = false
                                 visiblePositionConfirmed = false
-                            }, label = { Text("Black at bottom") })
+                            }, label = { Text("Io: Nero") })
                         }
 
                         Row(verticalAlignment = Alignment.CenterVertically) {

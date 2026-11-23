@@ -5,6 +5,11 @@ import com.chesslens.chess.ChessRules
 
 sealed interface TrackingResult {
     data class MoveAccepted(val previous: ChessPosition, val current: ChessPosition, val uci: String) : TrackingResult
+    data class PositionReconciled(
+        val previous: ChessPosition,
+        val current: ChessPosition,
+        val plies: Int
+    ) : TrackingResult
     data object Unchanged : TrackingResult
     data object RecognitionMismatch : TrackingResult
     data object Ambiguous : TrackingResult
@@ -42,7 +47,31 @@ class MoveTracker(initial: ChessPosition) {
             val next = ChessRules.apply(position, move)
             if (isConsistent(observedSquares, next.squares)) move.uci() to next else null
         }
-        return accept(matches)
+        if (matches.isNotEmpty()) return accept(matches)
+
+        // A frame can be missed while the app is animating or temporarily covered.
+        // Try exactly two consecutive legal plies; never guess when more than one
+        // resulting position matches the visible squares.
+        val reconciled = linkedMapOf<ChessPosition, Int>()
+        for (first in ChessRules.legalMoves(position)) {
+            val afterFirst = ChessRules.apply(position, first)
+            for (second in ChessRules.legalMoves(afterFirst)) {
+                val afterSecond = ChessRules.apply(afterFirst, second)
+                if (isConsistent(observedSquares, afterSecond.squares)) {
+                    reconciled.putIfAbsent(afterSecond, 2)
+                }
+            }
+        }
+        return when (reconciled.size) {
+            0 -> TrackingResult.RecognitionMismatch
+            1 -> {
+                val previous = position
+                val next = reconciled.keys.single()
+                position = next
+                TrackingResult.PositionReconciled(previous, next, reconciled.values.single())
+            }
+            else -> TrackingResult.Ambiguous
+        }
     }
 
     private fun isConsistent(observed: List<Char?>, candidate: List<Char?>): Boolean =

@@ -154,9 +154,20 @@ class ScreenCaptureService : Service() {
         latestBoard = result.board ?: latestBoard
         latestWhiteAtBottom = activePipeline.currentWhiteAtBottom
         val tracking = result.tracking
-        if (tracking is TrackingResult.MoveAccepted || tracking == TrackingResult.Unchanged) {
+        if (tracking is TrackingResult.MoveAccepted ||
+            tracking is TrackingResult.PositionReconciled ||
+            tracking == TrackingResult.Unchanged
+        ) {
             activePipeline.currentPosition.toFen()?.let { fen ->
-                if (fen != lastAnalyzedFen) startAnalysis(fen, result.message)
+                if (fen != lastAnalyzedFen) {
+                    if (activePipeline.isPlayerTurn) {
+                        startAnalysis(fen, result.message)
+                    } else {
+                        analysisJob?.cancel()
+                        lastAnalyzedFen = fen
+                        sendOverlayClear("Opponent to move. Waiting for your turn.")
+                    }
+                }
             }
         } else if (tracking == null && result.board != null) {
             // A move is being confirmed. Keep the last legal advice briefly instead

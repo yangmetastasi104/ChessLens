@@ -1,7 +1,6 @@
 package com.chesslens.vision
 
 import com.chesslens.chess.ChessPosition
-import com.chesslens.chess.ChessRules
 import com.chesslens.tracking.MoveTracker
 import com.chesslens.tracking.TrackingResult
 
@@ -24,8 +23,11 @@ class FrameAnalysisPipeline(
     private val tracker: MoveTracker = MoveTracker(initial)
 ) {
     val currentPosition: ChessPosition get() = tracker.position
+    /** The player chooses their own color; their pieces remain at the bottom. */
+    val playerIsWhite: Boolean = whiteAtBottom
     val currentWhiteAtBottom: Boolean get() = whiteAtBottom
-    private var whiteAtBottom = whiteAtBottom
+    val isPlayerTurn: Boolean get() = tracker.position.whiteToMove == playerIsWhite
+    private val whiteAtBottom = whiteAtBottom
     private var lastStable: List<Char?>? = null
     private var stableCount = 0
     private var calibrationFrames = 0
@@ -41,16 +43,8 @@ class FrameAnalysisPipeline(
             stableCount = 1
             return FrameAnalysis(board, TrackingResult.Unchanged, "Calibrated from confirmed FEN", board.confidence)
         }
-        var recognition = recognizer.recognize(frame, board, whiteAtBottom)
-        var squares = recognition.squares
-        if (!isCurrentOrLegalSuccessor(squares)) {
-            val flipped = recognizer.recognize(frame, board, !whiteAtBottom)
-            if (isCurrentOrLegalSuccessor(flipped.squares)) {
-                whiteAtBottom = !whiteAtBottom
-                recognition = flipped
-                squares = flipped.squares
-            }
-        }
+        val recognition = recognizer.recognize(frame, board, whiteAtBottom)
+        val squares = recognition.squares
         val observed = squares.count { it != '?' }
         if (observed < MIN_OBSERVED_SQUARES) {
             return FrameAnalysis(
@@ -79,8 +73,11 @@ class FrameAnalysisPipeline(
         val result = tracker.observePartial(squares)
         val message = when (result) {
             is TrackingResult.MoveAccepted -> "Move detected: ${result.uci}"
+            is TrackingResult.PositionReconciled ->
+                "Position recovered after ${result.plies} missed plies"
             TrackingResult.Unchanged -> "Position stable"
-            TrackingResult.RecognitionMismatch -> "Position does not match a legal move; state retained"
+            TrackingResult.RecognitionMismatch ->
+                "Position still differs from the tracked game. Restart capture with the current FEN."
             TrackingResult.Ambiguous -> "Move is ambiguous; state retained"
         }
         return FrameAnalysis(board, result, message, recognition.confidence)
@@ -93,13 +90,6 @@ class FrameAnalysisPipeline(
         lastStable = null
         stableCount = 0
         calibrationFrames = 0
-    }
-
-    private fun isCurrentOrLegalSuccessor(squares: List<Char?>): Boolean {
-        if (isConsistent(squares, tracker.position.squares)) return true
-        return ChessRules.legalMoves(tracker.position).any { move ->
-            isConsistent(squares, ChessRules.apply(tracker.position, move).squares)
-        }
     }
 
     private fun isConsistent(observed: List<Char?>, candidate: List<Char?>): Boolean =

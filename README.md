@@ -36,9 +36,9 @@ ChessLens is an **experimental training tool**. With your explicit training sele
 
 ### Download
 
-The signed universal APK is published on the [Releases](https://github.com/yangmetastasi104/ChessLens/releases) page as [`chesslens-v1.1.1-universal-release.apk`](https://github.com/yangmetastasi104/ChessLens/releases/download/v1.1.1/chesslens-v1.1.1-universal-release.apk). It contains the Stockfish engine for every supported ABI, so the same file can be installed on ARM64, ARMv7, x86, and x86_64 devices running Android 5.0 (API 21) or newer. The published SHA-256 checksum is available alongside the APK.
+The signed universal APK is published on the [Releases](https://github.com/yangmetastasi104/ChessLens/releases) page as [`chesslens-v1.2.0-universal-release.apk`](https://github.com/yangmetastasi104/ChessLens/releases/download/v1.2.0/chesslens-v1.2.0-universal-release.apk). It contains the Stockfish engine for every supported ABI, so the same file can be installed on ARM64, ARMv7, x86, and x86_64 devices running Android 5.0 (API 21) or newer. The published SHA-256 checksum is available alongside the APK.
 
-Version 1.1.1 fixes screen capture startup on Android 14 and newer by registering the required MediaProjection callback before creating the virtual display. It also shows the overlay panel as soon as a capture session starts and reports capture startup errors in the panel. Version 1.1.0 added the launcher icon, fixed Stockfish execution on Android 10+, corrected board-to-screen coordinate mapping, and introduced the larger draggable and resizable panel.
+Version 1.2.0 keeps the selected player's pieces at the bottom, suggests a move only on that player's turn, and no longer flips the board orientation to force an uncertain recognition to fit. The tracker can recover when a frame missed two consecutive legal plies; if the observed position still cannot be reconciled, the panel tells you to restart with the current FEN instead of silently suggesting a move. Version 1.1.1 fixed screen capture startup on Android 14 and newer.
 
 The earlier `v1.0.0-debug` prerelease is a debug-signed ARM64 preview. Android will not install it over the release build (and vice versa) because the signing keys differ; uninstall the previous build before switching.
 
@@ -64,7 +64,7 @@ The release APK is created at `app/build/outputs/apk/release/app-release.apk`. K
 
 1. Open ChessLens and select **Training**.
 2. Enter the complete six-field FEN for the board on screen.
-3. Confirm that the visible board matches that FEN and select the board orientation.
+3. Confirm that the visible board matches that FEN and select your color. Your pieces must be at the bottom; ChessLens suggests only when it is your turn.
 4. Grant overlay permission if Android requests it, then approve the screen-capture prompt.
 5. Keep the board stable while ChessLens calibrates. A suggestion appears only after a position is accepted and the engine’s move passes legal-move validation.
 6. Drag the floating panel to move it. Drag its bottom-right corner to resize it; the app remembers the chosen size and position.
@@ -117,8 +117,8 @@ At runtime the app selects the first ABI reported by the device that has a bundl
 ## Known limitations
 
 - Board detection assumes an axis-aligned board; perspective and tilt correction are not implemented.
-- Piece recognition uses visual templates calibrated from the supplied position and may fail across themes, animations, occlusion, or unusual board colors. The legal-move gate can reconcile a small number of uncertain squares, but it cannot recover a board that is mostly unrecognized.
-- If the panel reports uncertain squares, stop capture, enter the current visible FEN, and restart the session. ChessLens will not invent a position or a move.
+- Piece recognition uses visual templates calibrated from the supplied position; it is not a general-purpose trained vision model. It may fail across themes, animations, occlusion, or unusual board colors. The legal-move gate can reconcile a small number of uncertain squares and recover two missed plies, but it cannot recover a board that is mostly unrecognized.
+- If the panel says the position still differs, stop capture, enter the current visible FEN, select your color, and restart the session. ChessLens will not invent a position or a move.
 - Special-move state depends on the supplied FEN and subsequent correctly tracked moves.
 - The prototype has unit-test coverage but has **not** been validated for recognition accuracy, latency, or engine startup on a physical device.
 - Android 5.0 and 5.1 grant the overlay permission at install time; Android 6.0 and newer require the user to grant it in Settings.
