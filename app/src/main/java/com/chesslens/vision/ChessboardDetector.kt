@@ -17,7 +17,12 @@ class ChessboardDetector {
 
     fun detect(input: RgbFrame): BoardGeometry? {
         val frame = RgbFrame.fromScaled(input)
+        val minSide = minOf(frame.width, frame.height)
+        // A playable board fills most of the shorter screen side. Smaller checker
+        // patterns are game thumbnails or UI previews and must not be calibrated.
+        val minCell = maxOf(8, minSide / 16)
         val cachedBoard = cached?.let { scaleGeometry(it, input, frame) }
+            ?.takeIf { it.cellWidth >= minCell && it.cellHeight >= minCell }
         var best: Candidate? = null
         if (cachedBoard != null) {
             val cx = cachedBoard.left.toInt()
@@ -25,11 +30,11 @@ class ChessboardDetector {
             val cell = cachedBoard.cellWidth.toInt()
             best = search(frame, cell - maxOf(2, cell / 8), cell + maxOf(2, cell / 8), cx - cell, cx + cell, cy - cell, cy + cell)
         }
-        val minSide = minOf(frame.width, frame.height)
-        val global = search(frame, maxOf(8, minSide / 18), minSide / 7,
+        val global = search(frame, minCell, minSide / 7,
             0, frame.width, 0, frame.height)
         if (global != null && (best == null || global.score > best.score)) best = global
         val candidate = best?.let { refine(frame, it) } ?: return null
+        if (candidate.cell * 8 < minSide / 2) return null
         // The checker colors need clear separation; reject UI textures and arbitrary grids.
         if (candidate.score < 16.0) return null
         val sx = input.width.toFloat() / frame.width

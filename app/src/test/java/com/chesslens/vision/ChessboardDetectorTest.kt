@@ -23,6 +23,20 @@ class ChessboardDetectorTest {
         assertTrue(detected.confidence > .5f)
     }
 
+    @Test fun rejectsSmallBoardPreview() {
+        val width = 320
+        val height = 480
+        val pixels = IntArray(width * height) { 0xFF30343A.toInt() }
+        val left = 40; val top = 100; val cell = 18
+        for (row in 0 until 8) for (col in 0 until 8) {
+            val color = if ((row + col) % 2 == 0) 0xFFE5D8B8.toInt() else 0xFF73553D.toInt()
+            for (y in top + row * cell until top + (row + 1) * cell)
+                for (x in left + col * cell until left + (col + 1) * cell)
+                    pixels[y * width + x] = color
+        }
+        assertNull(ChessboardDetector().detect(RgbFrame(width, height, pixels)))
+    }
+
     @Test fun rejectsImageWithoutCheckerPattern() {
         val frame = RgbFrame(200, 300, IntArray(60_000) { 0xFF444444.toInt() })
         assertNull(ChessboardDetector().detect(frame))

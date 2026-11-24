@@ -178,6 +178,10 @@ class MainActivity : ComponentActivity() {
                             )
                             Text("I confirm the visible board currently matches this FEN.")
                         }
+                        Text(
+                            "Se ChessLens non riconosce la posizione, ferma la cattura, incolla il FEN attuale e riavvia. Non vengono mai suggerite mosse per una posizione non verificata.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
 
                         Text("I tuoi pezzi sono sempre in basso. Seleziona il tuo colore:")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

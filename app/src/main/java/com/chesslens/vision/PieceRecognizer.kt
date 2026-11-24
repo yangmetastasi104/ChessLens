@@ -42,6 +42,40 @@ class PieceRecognizer(private val confidenceThreshold: Float = 0.35f) {
         }
     }
 
+    /**
+     * Theme-independent piece/empty check used to validate the confirmed FEN before
+     * learning templates. It looks only at whether the square center differs from
+     * its own border, so highlights and square colors cancel out.
+     */
+    fun occupancy(frame: RgbFrame, board: BoardGeometry, whiteAtBottom: Boolean): List<Boolean> {
+        val result = MutableList(64) { false }
+        for (screenRow in 0..7) for (screenCol in 0..7) {
+            result[boardIndex(screenRow, screenCol, whiteAtBottom)] =
+                isOccupied(frame, board, screenRow, screenCol)
+        }
+        return result
+    }
+
+    private fun isOccupied(frame: RgbFrame, board: BoardGeometry, row: Int, col: Int): Boolean {
+        val left = board.left + col * board.cellWidth
+        val top = board.top + row * board.cellHeight
+        val cw = board.cellWidth
+        val ch = board.cellHeight
+        val bg = background(frame, left, top, cw, ch)
+        val n = 10
+        var changed = 0
+        for (y in 0 until n) for (x in 0 until n) {
+            val px = (left + cw * (.2f + .6f * (x + .5f) / n)).toInt().coerceIn(0, frame.width - 1)
+            val py = (top + ch * (.2f + .6f * (y + .5f) / n)).toInt().coerceIn(0, frame.height - 1)
+            val pixel = frame[px, py]
+            val dr = (pixel shr 16 and 255) - bg[0]
+            val dg = (pixel shr 8 and 255) - bg[1]
+            val db = (pixel and 255) - bg[2]
+            if (dr * dr + dg * dg + db * db > OCCUPANCY_DISTANCE_SQUARED) changed++
+        }
+        return changed >= n * n * OCCUPANCY_MIN_FRACTION
+    }
+
     fun recognize(frame: RgbFrame, board: BoardGeometry, whiteAtBottom: Boolean): PieceRecognition {
         if (templates.isEmpty()) {
             return PieceRecognition(List(64) { '?' }, 0f, (0..63).toList())
@@ -140,5 +174,7 @@ class PieceRecognizer(private val confidenceThreshold: Float = 0.35f) {
         private const val EMPTY_DISTANCE = 0.12f
         private const val MAX_PIECE_DISTANCE = 0.32f
         private const val MARGIN_DISTANCE = 0.06f
+        private const val OCCUPANCY_DISTANCE_SQUARED = 900f
+        private const val OCCUPANCY_MIN_FRACTION = 0.06f
     }
 }
